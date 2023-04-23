@@ -5,9 +5,9 @@ set -o pipefail
 
 DESTDIR="$PWD"
 
-OPENWRT_PGP="0xCD54E82DADB3684D"
+OPENWRT_PGP="0xCD84BCED626471F1"
 KEYSERVER="keyserver.ubuntu.com"
-INSTALLERDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+INSTALLERDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 OPENWRT_DIR="${INSTALLERDIR}/openwrt-ib"
 
 CPIO="${OPENWRT_DIR}/staging_dir/host/bin/cpio"
@@ -16,7 +16,12 @@ OPKG="${OPENWRT_DIR}/staging_dir/host/bin/opkg"
 XZ="${OPENWRT_DIR}/staging_dir/host/bin/xz"
 
 UNFIT="${INSTALLERDIR}/unfit"
-[ -x "$UNFIT" ] || ( cd "${INSTALLERDIR}/src" ; cmake . ; make all ; cp unfit .. ) || {
+[ -x "$UNFIT" ] || (
+	cd "${INSTALLERDIR}/src"
+	cmake .
+	make all
+	cp unfit ..
+) || {
 	echo "can't build unfit. please install gcc and libfdt-dev"
 	exit 0
 }
@@ -27,7 +32,6 @@ FILEBASE=
 WORKDIR=
 ITSFILE=
 
-
 prepare_openwrt_ib() {
 	GNUPGHOME="$(mktemp -d)"
 	export GNUPGHOME
@@ -35,8 +39,8 @@ prepare_openwrt_ib() {
 
 	mkdir -p "${INSTALLERDIR}/dl"
 	cd "${INSTALLERDIR}/dl"
-	gpg --no-default-keyring --keyring "${INSTALLERDIR}/openwrt-keyring" --list-key $OPENWRT_PGP 1>/dev/null 2>/dev/null || gpg --no-default-keyring --keyring "${INSTALLERDIR}/openwrt-keyring" --keyserver ${KEYSERVER}	--recv-key $OPENWRT_PGP
-	gpg --no-default-keyring --keyring "${INSTALLERDIR}/openwrt-keyring" --list-key $OPENWRT_PGP 1>/dev/null 2>/dev/null || exit 0
+	gpg --no-default-keyring --keyring "${INSTALLERDIR}/openwrt-keyring" --list-key $OPENWRT_PGP 1> /dev/null 2> /dev/null || gpg --no-default-keyring --keyring "${INSTALLERDIR}/openwrt-keyring" --keyserver ${KEYSERVER} --recv-key $OPENWRT_PGP
+	gpg --no-default-keyring --keyring "${INSTALLERDIR}/openwrt-keyring" --list-key $OPENWRT_PGP 1> /dev/null 2> /dev/null || exit 0
 	rm -f "sha256sums.asc" "sha256sums"
 	wget "${OPENWRT_TARGET}/sha256sums.asc"
 	wget "${OPENWRT_TARGET}/sha256sums"
@@ -72,17 +76,17 @@ its_add_data() {
 			case "$line" in
 				*"images {"*)
 					in_images=1
-					continue;
-				;;
+					continue
+					;;
 			esac
 		fi
 		if [ "$in_images" = "1" ] && [ "$in_image" = "0" ]; then
 			case "$line" in
 				*"{"*)
 					in_image=1
-					img_name="$(echo "$line" | cut -d'{' -f1 | sed 's/ *$//g' )"
-					continue;
-				;;
+					img_name="$(echo "$line" | cut -d'{' -f1 | sed 's/ *$//g')"
+					continue
+					;;
 			esac
 		fi
 		if [ "$in_images" = "1" ] && [ "$in_image" = "1" ]; then
@@ -92,7 +96,7 @@ its_add_data() {
 					;;
 				*"{"*)
 					br_level=$((br_level + 1))
-					continue;
+					continue
 					;;
 				*"}"*)
 					if [ $br_level -gt 0 ]; then
@@ -100,7 +104,7 @@ its_add_data() {
 					else
 						in_image=0
 					fi
-					continue;
+					continue
 					;;
 			esac
 		fi
@@ -142,7 +146,7 @@ refit_image() {
 	[ "$STATIC" = "1" ] && MKIMAGE_PARM=("${MKIMAGE_PARM[@]}" -p 0x1000)
 
 	PATH="$PATH:$(dirname "$DTC")" \
-		SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH \
+	SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH \
 		"$MKIMAGE" "${MKIMAGE_PARM[@]}" -f "${ITSFILE}.new" "${FILEBASE}-refit.itb"
 
 	echo "imgtype: \"${imgtype:-(unset)}\""
@@ -161,10 +165,13 @@ extract_initrd() {
 
 repack_initrd() {
 	[ -d "${WORKDIR}/initrd" ] || return 1
-	find "${WORKDIR}/initrd" -newermt "@${SOURCE_DATE_EPOCH}" -print0 |
-		xargs -0r touch --no-dereference --date="@${SOURCE_DATE_EPOCH}"
+	find "${WORKDIR}/initrd" -newermt "@${SOURCE_DATE_EPOCH}" -print0 \
+		| xargs -0r touch --no-dereference --date="@${SOURCE_DATE_EPOCH}"
 	echo "re-compressing initrd..."
-	( cd "${WORKDIR}/initrd" ; find . | LC_ALL=C sort | "${CPIO}" --reproducible -o -H newc -R 0:0 | "${XZ}" -T0 -c -9  --check=crc32 > "${WORKDIR}/initrd-1" )
+	(
+		cd "${WORKDIR}/initrd"
+		find . | LC_ALL=C sort | "${CPIO}" --reproducible -o -H newc -R 0:0 | "${XZ}" -T0 -c -9 --check=crc32 > "${WORKDIR}/initrd-1"
+	)
 	return 0
 }
 
@@ -178,7 +185,10 @@ allow_mtd_write() {
 enable_services() {
 	cd "${WORKDIR}/initrd"
 	for service in ./etc/init.d/*; do
-		( cd "${WORKDIR}/initrd" ; IPKG_INSTROOT="${WORKDIR}/initrd" $(command -v bash) ./etc/rc.common "$service" enable 2>/dev/null )
+		(
+			cd "${WORKDIR}/initrd"
+			IPKG_INSTROOT="${WORKDIR}/initrd" $(command -v bash) ./etc/rc.common "$service" enable 2> /dev/null
+		)
 	done
 }
 
@@ -199,28 +209,28 @@ bundle_initrd() {
 	OPKG_KEYS="${WORKDIR}/initrd/etc/opkg/keys" \
 	TMPDIR="${WORKDIR}/initrd/tmp" \
 		"${OPKG}" --offline-root="${WORKDIR}/initrd" -f "${WORKDIR}/initrd/etc/opkg.conf" \
-			--verify-program="${WORKDIR}/initrd/usr/sbin/opkg-key" \
-			update
+		--verify-program="${WORKDIR}/initrd/usr/sbin/opkg-key" \
+		update
 
-	[[ ${#OPENWRT_ADD_PACKAGES[@]} -gt 0 ]] && \
-		PATH="$(dirname "${OPKG}"):$PATH" \
+	[[ ${#OPENWRT_ADD_PACKAGES[@]} -gt 0 ]] \
+		&& PATH="$(dirname "${OPKG}"):$PATH" \
 		OPKG_KEYS="${WORKDIR}/initrd/etc/opkg/keys" \
 		TMPDIR="${WORKDIR}/initrd/tmp" \
 		IPKG_NO_SCRIPT=1 IPKG_INSTROOT="${WORKDIR}/initrd" \
-		"${OPKG}" --offline-root="${WORKDIR}/initrd" -f "${WORKDIR}/initrd/etc/opkg.conf" \
-		--verify-program="${WORKDIR}/initrd/usr/sbin/opkg-key" \
-		--force-postinst install "${OPENWRT_ADD_PACKAGES[@]}"
+			"${OPKG}" --offline-root="${WORKDIR}/initrd" -f "${WORKDIR}/initrd/etc/opkg.conf" \
+			--verify-program="${WORKDIR}/initrd/usr/sbin/opkg-key" \
+			--force-postinst install "${OPENWRT_ADD_PACKAGES[@]}"
 
 	case "$imgtype" in
 		recovery)
-			[[ ${#OPENWRT_ADD_REC_PACKAGES[@]} -gt 0 ]] && \
-			PATH="$(dirname "${OPKG}"):$PATH" \
-			OPKG_KEYS="${WORKDIR}/initrd/etc/opkg/keys" \
-			TMPDIR="${WORKDIR}/initrd/tmp" \
-			IPKG_NO_SCRIPT=1 IPKG_INSTROOT="${WORKDIR}/initrd" \
-				"${OPKG}" --offline-root="${WORKDIR}/initrd" -f "${WORKDIR}/initrd/etc/opkg.conf" \
-				--verify-program="${WORKDIR}/initrd/usr/sbin/opkg-key" \
-				--force-postinst install "${OPENWRT_ADD_REC_PACKAGES[@]}"
+			[[ ${#OPENWRT_ADD_REC_PACKAGES[@]} -gt 0 ]] \
+				&& PATH="$(dirname "${OPKG}"):$PATH" \
+				OPKG_KEYS="${WORKDIR}/initrd/etc/opkg/keys" \
+				TMPDIR="${WORKDIR}/initrd/tmp" \
+				IPKG_NO_SCRIPT=1 IPKG_INSTROOT="${WORKDIR}/initrd" \
+					"${OPKG}" --offline-root="${WORKDIR}/initrd" -f "${WORKDIR}/initrd/etc/opkg.conf" \
+					--verify-program="${WORKDIR}/initrd/usr/sbin/opkg-key" \
+					--force-postinst install "${OPENWRT_ADD_REC_PACKAGES[@]}"
 			;;
 		installer)
 			cp -avr "${INSTALLERDIR}/files/"* "${WORKDIR}/initrd"
@@ -228,12 +238,12 @@ bundle_initrd() {
 			;;
 	esac
 
-	sed -i "s/Installed-Time: .*/Installed-Time: ${SOURCE_DATE_EPOCH}/" ${WORKDIR}/initrd/usr/lib/opkg/status
+	sed -i "s/Installed-Time: .*/Installed-Time: ${SOURCE_DATE_EPOCH}/" "${WORKDIR}/initrd/usr/lib/opkg/status"
 
 	enable_services
 	rm -rf "${WORKDIR}/initrd/tmp/"*
 
-	find ${WORKDIR}/initrd/ -mindepth 1 -execdir touch -hcd "@${SOURCE_DATE_EPOCH}" "{}" +
+	find "${WORKDIR}/initrd/" -mindepth 1 -execdir touch -hcd "@${SOURCE_DATE_EPOCH}" "{}" +
 
 	repack_initrd
 
@@ -250,7 +260,7 @@ bundle_initrd() {
 }
 
 linksys_e8450_installer() {
-	OPENWRT_RELEASE="22.03.3"
+	OPENWRT_RELEASE="23.05.0"
 	OPENWRT_TARGET="https://downloads.openwrt.org/releases/${OPENWRT_RELEASE}/targets/mediatek/mt7622"
 	OPENWRT_IB="openwrt-imagebuilder-${OPENWRT_RELEASE}-mediatek-mt7622.Linux-x86_64.tar.xz"
 	OPENWRT_INITRD="openwrt-${OPENWRT_RELEASE}-mediatek-mt7622-linksys_e8450-ubi-initramfs-recovery.itb"
@@ -258,7 +268,7 @@ linksys_e8450_installer() {
 	OPENWRT_ADD_REC_PACKAGES=(kmod-mtd-rw)
 	OPENWRT_REMOVE_PACKAGES=()
 	OPENWRT_ADD_PACKAGES=()
-	VENDOR_FW="https://web.archive.org/web/20220511153700if_/https://www.belkin.com/support/assets/belkin/firmware/FW_RT3200_1.1.01.272918_PROD_unsigned.img"
+	VENDOR_FW="https://github.com/lectrical/owrt-ubi-installer/raw/script_update/firmware/FW_RT3200_1.1.01.272918_PROD_unsigned.img"
 	VENDOR_FW_HASH="01a9efa97120ff6692c252f2958269afbc87acd2528b281adfc8b55b0ca6cf8a"
 
 	prepare_openwrt_ib
