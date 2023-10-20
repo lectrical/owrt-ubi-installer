@@ -5,7 +5,7 @@ set -o pipefail
 
 DESTDIR="$PWD"
 
-OPENWRT_PGP="0xCD54E82DADB3684D"
+OPENWRT_PGP="0xCD84BCED626471F1"
 KEYSERVER="keyserver.ubuntu.com"
 INSTALLERDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 OPENWRT_DIR="${INSTALLERDIR}/openwrt-ib"
